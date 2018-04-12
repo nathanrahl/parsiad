@@ -68,8 +68,9 @@ class approximation {
 		const vector &w_vec,
 		const vector &u_vec
 	) {
-		matrix lhs = matrix(M, M); // TODO: Reserve space
+		matrix lhs = matrix(M, M);
 		vector rhs = vector::Zero(M);
+		lhs.reserve(5 * M); // At most 5 zeros per row
 
 		int i = 0;
 		const int e1 = M2 + 1;
@@ -87,12 +88,9 @@ class approximation {
 		for(int i1 = 1; i1 < M1; ++i1) {
 			const double xi = xi_d[i1];
 
-			// i2 = 0
-			lhs.insert(i, i) = 1.;
-			rhs[i++] = p.f(p.T * p.x0);
-
-			// 0 < i2 < M2
-			for(int i2 = 1; i2 < M2; ++i2) {
+			// 0 <= i2 <= M2
+			// TODO: Explicitly optimize so there is no branching here
+			for(int i2 = 0; i2 <= M2; ++i2) {
 				const double w_i = w_vec[i];
 				const double u_i = u_vec[i];
 				const double k_i = p.x0 * (1. - xi) + p.x1 * xi - b_d[i2];
@@ -100,17 +98,13 @@ class approximation {
 				const double dwind = (k_i < 0.) ? 1. : 0.;
 				const double tmp_1 = (1. - w_i) * std::fabs(k_i) / t / db * dt;
 				const double tmp_2 = w_i / (dxi * dxi) * dt;
-				lhs.insert(i, i - e2) = - dwind * tmp_1;
+				if(i2 >  0) { lhs.insert(i, i - e2) = - dwind * tmp_1; }
 				lhs.insert(i, i - e1) = - tmp_2 / 2.;
 				lhs.insert(i, i     ) = tmp_1 + tmp_2 + (1. - w_i);
 				lhs.insert(i, i + e1) = - tmp_2 / 2.;
-				lhs.insert(i, i + e2) = - uwind * tmp_1;
+				if(i2 < M2) { lhs.insert(i, i + e2) = - uwind * tmp_1; }
 				rhs[i++] = (1. - w_i) * u_i;
 			}
-
-			// i2 = M2
-			lhs.insert(i, i) = 1.;
-			rhs[i++] = p.f(p.T * p.x1);
 		}
 
 		// i1 = M1
@@ -225,9 +219,9 @@ int main() {
 	};
 
 	// Discretization parameters
-	const int N  = 20; // Number of timesteps
-	const int M1 = 20; // Number of points in xi axis
-	const int M2 = 20; // Number of points in b = a/t axis
+	const int N  = 50; // Number of timesteps
+	const int M1 = 50; // Number of points in xi axis
+	const int M2 = 50; // Number of points in b = a/t axis
 
 	// Prepare parameters struct
 	const double sigma_ubar2 = sigma_ubar * sigma_ubar;
@@ -240,7 +234,7 @@ int main() {
 	// Approximate
 	approximation u_approx(p, N, M1, M2);
 	const std::deque<vector> &sols = u_approx.get_solution_vectors();
-	std::cout << sols[3] << std::endl;
+	std::cout << sols[0] << std::endl;
 
 	return 0;
 
